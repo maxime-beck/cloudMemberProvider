@@ -118,45 +118,14 @@ public class KubernetesMemberProvider extends AbstractMemberProvider {
 
         List<MemberImpl> members = new ArrayList<>();
 
-        InputStream stream = streamProvider.openStream(url, headers, connectionTimeout, readTimeout);
-        JSONObject json = new JSONObject(new JSONTokener(stream));
+        InetAddress[] inetAddresses = InetAddress.getAllByName("tomcat-in-the-cloud");
 
-        JSONArray items = json.getJSONArray("items");
-
-        for (int i = 0; i < items.length(); i++) {
-            String phase;
+        for (InetAddress inetAddress : inetAddresses) {
             String ip;
-            String name;
-            Instant creationTime;
+            ip = inetAddress.getHostAddress();
 
-            try {
-                JSONObject item = items.getJSONObject(i);
-                JSONObject status = item.getJSONObject("status");
-                phase = status.getString("phase");
-
-                // Ignore shutdown pods
-                if (!phase.equals("Running"))
-                    continue;
-
-                ip = status.getString("podIP");
-
-                // Get name & start time
-                JSONObject metadata = item.getJSONObject("metadata");
-                name = metadata.getString("name");
-                String timestamp = metadata.getString("creationTimestamp");
-                creationTime = Instant.parse(timestamp);
-            } catch (JSONException e) {
-                log.warn("JSON Exception: ", e);
-                continue;
-            }
-
-            // We found ourselves, ignore
-            if (name.equals(hostName))
-                continue;
-
-            // id = md5(hostname)
-            byte[] id = md5.digest(name.getBytes());
-            long aliveTime = Duration.between(creationTime, startTime).getSeconds() * 1000; // aliveTime is in ms
+            byte[] id = md5.digest(ip.getBytes());
+            long aliveTime = -1;
 
             MemberImpl member = null;
             try {
@@ -169,7 +138,7 @@ public class KubernetesMemberProvider extends AbstractMemberProvider {
             }
 
             member.setUniqueId(id);
-            members.add(member);
+            members.add(member);            
         }
 
         return members;
